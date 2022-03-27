@@ -1,0 +1,1668 @@
+#Comparing Top 5 European Soccer Leagues
+#data source: http://www.football-data.co.uk
+
+library(lubridate)
+library(dplyr)
+library(tidyverse)
+library(ggrepel)
+
+#Premier League
+
+prem0910 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem0910.csv")
+prem1011 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem1011.csv")
+prem1112 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem1112.csv")
+prem1213 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem1213.csv")
+prem1314 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem1314.csv")
+prem1415 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem1415.csv")
+prem1516 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem1516.csv")
+prem1617 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem1617.csv")
+prem1718 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem1718.csv")
+prem1819 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem1819.csv")
+prem1920 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem1920.csv")
+prem2021 = read.csv("~/Desktop/Personal/Cleaned R Projects/Premier League/prem2021.csv")
+
+#Condense dataframes to specific columns so we can combine tables together
+prem0910 = prem0910[,c(1:23)]
+prem1011 = prem1011[,c(1:23)]
+prem1112 = prem1112[,c(1:23)]
+prem1213 = prem1213[,c(1:23)]
+prem1314 = prem1314[,c(1:23)]
+prem1415 = prem1415[,c(1:23)]
+prem1516 = prem1516[,c(1:23)]
+prem1617 = prem1617[,c(1:23)]
+prem1718 = prem1718[,c(1:23)]
+prem1819 = prem1819[,c(1:23)]
+prem1920 = prem1920[,c(1:2,4:24)] #had an additional column for time in column 3
+prem2021 = prem2021[,c(1:2,4:24)] #had an additional column for time in column 3
+prem = do.call("rbind", list(prem0910, prem1011, prem1112, prem1213, prem1314, prem1415,
+                                           prem1516, prem1617, prem1718, prem1819, prem1920, prem2021))
+
+#creating exisiting data structure
+prem$Date = parse_date_time(prem$Date,orders = c("dmy","ymd"))
+
+#identidy season of each row
+
+prem$season[1:380] = "09/10"
+prem$season[381:760] = "10/11"
+prem$season[761:1140] = "11/12"
+prem$season[1141:1520] = "12/13"
+prem$season[1521:1900] = "13/14"
+prem$season[1901:2280] = "14/15"
+prem$season[2281:2660] = "15/16"
+prem$season[2661:3040] = "16/17"
+prem$season[3041:3420] = "17/18"
+prem$season[3421:3800] = "18/19"
+prem$season[3801:4180] = "19/20"
+prem$season[4181:4560] = "20/21"
+
+#Lets reorder the data a bit: 
+prem = prem[,c(1,24,2:23)]
+
+#Add points - we should move this after the goals scored
+prem$HomeTeamPoints = ifelse(prem$FTHG > prem$FTAG, 3,
+                                    ifelse(prem$FTHG == prem$FTAG,1,0))
+prem$AwayTeamPoints = ifelse(prem$FTHG > prem$FTAG, 0,
+                                    ifelse(prem$FTHG == prem$FTAG,1,3))
+
+#Moving points after full time goals scored
+prem = prem[, c(1:7,25:26,8:24)]
+
+#Now for some Exploratory data
+
+#All-time home team points
+prem %>%
+  group_by(HomeTeam)%>%
+  summarise(Points = sum(HomeTeamPoints))%>%
+  print(n =50)
+
+#All-time home team points sorted by Points
+#creating a variable for it as it will help showcase Home and Away together later
+homepoints = prem %>%
+  group_by(Team = HomeTeam)%>%
+  summarise(HomePoints = sum(HomeTeamPoints), Seasons = n_distinct(season))%>%
+  arrange(desc(HomePoints))%>%
+  print(n =50)
+
+#All-time away team points
+prem %>%
+  group_by(AwayTeam)%>%
+  summarise(Points = sum(AwayTeamPoints))%>%
+  print(n =50)
+
+#All-time away team points sorted by Points
+#creating a variable for it as it will help showcase Home and Away together later
+awaypoints = prem %>%
+  group_by(Team = AwayTeam)%>%
+  summarise(AwayPoints = sum(AwayTeamPoints), Seasons = n_distinct(season))%>%
+  arrange(desc(AwayPoints))%>%
+  print(n =50)
+
+#Summarize Total Points, Home/Away Points, Percentage of Points earned at Home/Away
+#Quite a big gap between 6 to 7
+#And between 1 -2
+
+#this one is just total points
+prem %>%
+  select(Team = HomeTeam,Points = HomeTeamPoints) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints))%>%
+  group_by(Team)%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print (n = 50)
+
+#This one is total points, home/away points, percentage of home/away points
+#Couldnt figure out how to accomplish this in one pipe
+#So used some global variables and joins to help achieve it
+prempoints = left_join(homepoints, awaypoints)
+prempoints %>%
+  group_by(Team)%>%
+  summarise(Points = HomePoints + AwayPoints, Seasons, HomePoints, AwayPoints,
+            HomePointsPercent = HomePoints/Points, AwayPointsPercent = 1-HomePointsPercent)%>%
+  arrange(desc(Points))%>%
+  print(n = 50)
+
+#Interesting Leeds is the only team to get more of their points on the road - this is only the one season they were in the Premier League tho
+#Hull was able to get almost 3x as many points at home as on the road over 4 seasons
+#Its also interesting that your top 6 teams all hover around the 55-45% split
+#But as you jump to 7th, which is where a large points gap opens up, you immediately jump to a 60-40% split
+#just shows how consistent you have to be on the road and at home to be a top side
+#Leicester have earned more points over less seasons than 4 clubs (big title win in 15/16)
+
+#SanityCheck (did my above join and pipe bring the points in properly?) - Looks Good!
+prem%>%
+  select(HomeTeam, HomeTeamPoints)%>%
+  filter(HomeTeam == "Liverpool")%>%
+  summarize(sum(HomeTeamPoints))
+prem%>%
+  select(AwayTeam, AwayTeamPoints)%>%
+  filter(AwayTeam == "Liverpool")%>%
+  summarize(sum(AwayTeamPoints))
+
+
+#Points per Season
+prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  arrange(desc(PointsPerSeason))%>%
+  print(n = 50)
+
+#Point per season for each Season
+prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  arrange(desc(PointsPerSeason))%>%
+  print(n = 50)
+
+#Then this is how you can plot it by building a separate tibble and plot referenceing that tibble
+PointPerSeason = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)
+
+ggplot(data = PointPerSeason, aes(Season,PointsPerSeason, group = Team, color = Team)) + 
+  geom_point()+
+  geom_path()
+#Wow that looks pretty hectic!
+
+#Or you can plot within the tibble
+prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  ggplot(aes(Season,PointsPerSeason, group = Team, color = Team)) + 
+  geom_point()+
+  geom_path()
+
+#So we need to do some filtering
+#I think 1 we want to look at teams who have at least been playing more than 5 seasons our of the last 12 so we can see trends a bit
+#Second we'll have to find a way to split it 
+#Either manually selecting teams like top 6-8, and then the next 6-8 on a separate graph
+#it would be nice if we could plot teams who have achieved one season of at least x points as the top teams
+#and then maybe the group below them
+#So if we go back to points per season per team
+prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  arrange(desc(PointsPerSeason))%>%
+  print(n = 200)
+#We can see that 100 is the top, 30s and below are the bottom, so 60-65 is around an average
+#Find any team who had a season of at least 65 points
+topseasons = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  filter(Points >= 65)%>%
+  arrange(desc(PointsPerSeason))%>%
+  print(n = 200)
+#The only teams to achieve a 65 point season in the last 12 seasons
+unique(topseasons$Team)
+#so maybe we can make a graph on these teams to see how theyve done
+#Then make a separate graph on the others
+#i think we'll still want to see teams who have played more than 5 seasons so we can see some trend
+
+
+prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  filter(n_distinct(Season) >= 5)%>%
+  filter(Team %in% topseasons$Team)%>%
+  ggplot(aes(Season,PointsPerSeason, group = Team, color = Team)) + 
+  geom_point()+
+  geom_path()+
+  scale_color_brewer(palette = "Set3")
+#Summary
+#Arsenal have been declining since the end of the 16/17 season
+#Chelsea fairly steady besides 15/16 season
+#Everton one decent year in 13/14 other than that, have been average
+#Liverpool very up and down, 2 very good seasons 18/19, 19/20
+#Man City quite steady one dip in 15/16
+#Man United best season was 12/13, one second place in 17/18
+#Tottenham one of the most steady teams with one strong season in 16/17
+#West Ham have been slowely getting better with one dip in 19/20
+#Newcastle one strong year in 11/12 (6th place!) and have been consisten 40-45 point team since then. So they probably dont belong in this group, but in the coming seasons they may find themselves back given the new investment in the club
+#Leicester that title win in 15/16 crazy, other than been getting stronger each year
+
+#Now can we look at the other teams who have played more than 7 seasons and see how they trend
+#Here were going 7 just so we have enough colours
+prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  filter(n_distinct(Season) >= 7)%>%
+  filter(!(Team %in% topseasons$Team))%>%
+  ggplot(aes(Season,PointsPerSeason, group = Team, color = Team)) + 
+  geom_point()+
+  geom_path() + 
+  scale_color_brewer(palette = "Set3")
+ 
+#Wow Aston Villa- relegation in 15/16 and back to a 55 point team in 20/21
+#Wolves gone in 11/12, back in 18/19 with a remarkable season ~57 points
+#Wolves would be on here if we changed to 5 seasons minimum
+#Southamton very up and down team, peaked in 15/16
+#Crystal Palace very consistent 42-48 point team
+
+
+
+
+
+
+
+#Long term Project
+
+##Now we get into competiveness season over season
+##Here we are going to choose an arbitrary number: 6
+#And compare how many points the bottom 6 per season get off the top 6
+#Why? 
+#As a soccer fan all you hear from the premier league media is anyone can beat anyone on any given day
+#Of course this is true, but I would like to see how this compares across the different leagues as well
+#To see if one league poses more competition regularily than other leagues for the top teams
+
+#Premier League
+
+#09/10 season
+#We will first have to identidy the standings in each season
+premseason0910 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "09/10")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+#We can make a boxplot of the seasons points as well
+ggplot(data = premseason0910)+
+  geom_boxplot(aes(Points, Season))+
+  coord_flip()+
+  geom_point(aes(Points, Season), size = 1)
+  #geom_text(aes(Points, Season, label = Team))+
+  #label outliers maybe
+  #really we just want to see a trend in the boxes (is the middle getting higher or lower, are the top teams getting further away or closer, same with the bottom teams)
+
+#Identify the top 6 and bottom 6 sides in the season
+top6 = head(premseason0910$Team,6)
+bottom6 = tail(premseason0910$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 09/10
+away0910points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "09/10")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 09/10
+home0910points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "09/10")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 09/10 season
+bottom0910points = sum(home0910points$Points) + sum(away0910points$Points)
+bottom0910points
+
+#10/11 season
+premseason1011 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "10/11")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(premseason1011$Team,6)
+bottom6 = tail(premseason1011$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 10/11
+
+away1011points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "10/11")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 10/11
+
+home1011points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "10/11")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 10/11 season
+bottom1011points = sum(home1011points$Points) + sum(away1011points$Points)
+bottom1011points
+
+#11/12 season
+premseason1112 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "11/12")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(premseason1112$Team,6)
+bottom6 = tail(premseason1112$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 11/12
+
+away1112points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "11/12")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 11/12
+
+home1112points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "11/12")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 11/12 season
+bottom1112points = sum(home1112points$Points) + sum(away1112points$Points)
+bottom1112points
+
+#12/13 season
+premseason1213 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "12/13")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(premseason1213$Team,6)
+bottom6 = tail(premseason1213$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 12/13
+
+away1213points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "12/13")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 12/13
+
+home1213points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "12/13")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 12/13 season
+bottom1213points = sum(home1213points$Points) + sum(away1213points$Points)
+bottom1213points
+
+#13/14 season
+premseason1314 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "13/14")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(premseason1314$Team,6)
+bottom6 = tail(premseason1314$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 13/14
+
+away1314points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "13/14")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 13/14
+
+home1314points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "13/14")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 13/14 season
+bottom1314points = sum(home1314points$Points) + sum(away1314points$Points)
+bottom1314points
+
+#14/15 season
+premseason1415 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "14/15")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(premseason1415$Team,6)
+bottom6 = tail(premseason1415$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 14/15
+
+away1415points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "14/15")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 14/15
+
+home1415points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "14/15")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 14/15 season
+bottom1415points = sum(home1415points$Points) + sum(away1415points$Points)
+bottom1415points
+
+#15/16 season
+premseason1516 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "15/16")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(premseason1516$Team,6)
+bottom6 = tail(premseason1516$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 15/16
+
+away1516points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "15/16")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 15/16
+
+home1516points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "15/16")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 15/16 season
+bottom1516points = sum(home1516points$Points) + sum(away1516points$Points)
+bottom1516points
+
+#16/17 season
+premseason1617 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "16/17")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(premseason1617$Team,6)
+bottom6 = tail(premseason1617$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 16/17
+
+away1617points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "16/17")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 16/17
+
+home1617points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "16/17")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 16/17 season
+bottom1617points = sum(home1617points$Points) + sum(away1617points$Points)
+bottom1617points
+
+#17/18 season
+premseason1718 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "17/18")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(premseason1718$Team,6)
+bottom6 = tail(premseason1718$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 17/18
+
+away1718points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "17/18")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 17/18
+
+home1718points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "17/18")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 17/18 season
+bottom1718points = sum(home1718points$Points) + sum(away1718points$Points)
+bottom1718points
+
+#18/19 season
+premseason1819 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "18/19")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(premseason1819$Team,6)
+bottom6 = tail(premseason1819$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 18/19
+
+away1819points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "18/19")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 18/19
+
+home1819points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "18/19")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 18/19 season
+bottom1819points = sum(home1819points$Points) + sum(away1819points$Points)
+bottom1819points
+
+#19/20 season
+premseason1920 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "19/20")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(premseason1920$Team,6)
+bottom6 = tail(premseason1920$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 19/20
+
+away1920points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "19/20")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 19/20
+
+home1920points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "19/20")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 19/20 season
+bottom1920points = sum(home1920points$Points) + sum(away1920points$Points)
+bottom1920points
+
+#20/21 season
+premseason2021 = prem%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(prem%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "20/21")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(premseason2021$Team,6)
+bottom6 = tail(premseason2021$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 20/21
+
+away2021points = prem%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "20/21")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 20/21
+
+home2021points = prem%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "20/21")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 20/21 season
+bottom2021points = sum(home2021points$Points) + sum(away2021points$Points)
+bottom2021points
+
+#Now we can plot a graph showing how many points the bottom sides got season over season
+#This will be more interesting once the other leagues are completed
+#As we can see if there is more distance between the bottom and the top in certain leagues and how that gap is changing 
+
+#Make the dataframe
+#We can probbaly do the same for the other leagues and append as one
+prem_diff = data.frame(Season = c("09/10", "10/11", "11/12", "12/13", 
+                                  "13/14", "14/15", "15/16", "16/17",
+                                  "17/18", "18/19", "19/20", "20/21"),
+                       Points = c(bottom0910points, bottom1011points, bottom1112points, 
+                                  bottom1213points, bottom1314points, bottom1415points, 
+                                  bottom1516points, bottom1617points, bottom1718points, 
+                                  bottom1819points, bottom1920points, bottom2021points), 
+                       League = "Prem")
+#Plot the graph 
+ggplot(data = prem_diff, aes(x = Season, y = Points, group = League)) + 
+  geom_point()+
+  geom_line()
+#18/19 is an outlier due to Man City and Liverpool both getting 100 points in the same season
+#in general its very up and down, hovering between 30-40, however interesting it has been above the 40 mark the two years after the 18/19 season
+
+#A second part could be can we see how many points the bottom 6 got off each top 6 side in each year and see if any of the top 6 teams have been getting weaker or stronger in that regard
+#This seems like much more work - so maybe something to come back to later
+
+#We can now print side by side boxplots for each season from 09/10 to 20/21 to see how the general points are trending
+
+#We can make a boxplot of the seasons points as well
+premseasons = rbind.data.frame(premseason0910, premseason1011, premseason1112, premseason1213, 
+                   premseason1314, premseason1415, premseason1516, premseason1617, 
+                   premseason1718, premseason1819, premseason1920, premseason2021)
+#Just the points
+ggplot(data = premseasons)+
+  geom_boxplot(aes(Points, Season))+
+  coord_flip()+
+  geom_point(aes(Points, Season), size = 1)
+
+#The points showing groups of duplciated points more evidently - i like this one the best
+
+ggplot(data = premseasons)+
+  geom_boxplot(aes(Points, Season))+
+  coord_flip()+
+  geom_point(aes(Points, Season), size = 0.5)+
+  geom_count(aes(Points, Season, color = ..n..))+
+  scale_color_continuous(breaks = c(1,2,3))+
+  scale_size_continuous(range = c(1,3),  
+                        breaks= c(1,2,3))
+
+#The points slightly scattered so you can see where overalapping points would be
+ggplot(data = premseasons)+
+  geom_boxplot(aes(Points, Season))+
+  coord_flip()+
+  #geom_point(aes(Points, Season), size = 1)+
+  geom_jitter(aes(Points, Season), width = 0.1)
+
+#Now we can move onto another league
+#Bundesliga
+
+bundesliga0910 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga0910.csv")
+bundesliga1011 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga1011.csv")
+bundesliga1112 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga1112.csv")
+bundesliga1213 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga1213.csv")
+bundesliga1314 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga1314.csv")
+bundesliga1415 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga1415.csv")
+bundesliga1516 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga1516.csv")
+bundesliga1617 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga1617.csv")
+bundesliga1718 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga1718.csv")
+bundesliga1819 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga1819.csv")
+bundesliga1920 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga1920.csv")
+bundesliga2021 = read.csv("~/Desktop/Personal/Cleaned R Projects/Bundesliga/bundesliga2021.csv")
+
+#Condense dataframes to specific columns so we can combine tables together
+bundesliga0910 = bundesliga0910[,c(1:23)]
+bundesliga1011 = bundesliga1011[,c(1:23)]
+bundesliga1112 = bundesliga1112[,c(1:23)]
+bundesliga1213 = bundesliga1213[,c(1:23)]
+bundesliga1314 = bundesliga1314[,c(1:23)]
+bundesliga1415 = bundesliga1415[,c(1:23)]
+bundesliga1516 = bundesliga1516[,c(1:23)]
+bundesliga1617 = bundesliga1617[,c(1:23)]
+bundesliga1718 = bundesliga1718[,c(1:23)]
+bundesliga1819 = bundesliga1819[,c(1:23)]
+bundesliga1920 = bundesliga1920[,c(1:2,4:24)] #had an additional column for time in column 3
+bundesliga2021 = bundesliga2021[,c(1:2,4:24)] #had an additional column for time in column 3
+bundesliga = do.call("rbind", list(bundesliga0910, bundesliga1011, bundesliga1112, bundesliga1213, bundesliga1314, bundesliga1415,
+                             bundesliga1516, bundesliga1617, bundesliga1718, bundesliga1819, bundesliga1920, bundesliga2021))
+
+#creating exisiting date structure
+bundesliga$Date = parse_date_time(bundesliga$Date,orders = c("dmy","ymd"))
+
+#identidy season of each row
+#Less teams in the bundesliga!!
+bundesliga$season[1:306] = "09/10"
+bundesliga$season[307:612] = "10/11"
+bundesliga$season[613:918] = "11/12"
+bundesliga$season[919:1224] = "12/13"
+bundesliga$season[1225:1530] = "13/14"
+bundesliga$season[1531:1836] = "14/15"
+bundesliga$season[1837:2142] = "15/16"
+bundesliga$season[2143:2448] = "16/17"
+bundesliga$season[2449:2754] = "17/18"
+bundesliga$season[2755:3060] = "18/19"
+bundesliga$season[3061:3366] = "19/20"
+bundesliga$season[3367:3672] = "20/21"
+
+#Lets reorder the data a bit: 
+bundesliga = bundesliga[,c(1,24,2:23)]
+
+#Add points - we should move this after the goals scored
+bundesliga$HomeTeamPoints = ifelse(bundesliga$FTHG > bundesliga$FTAG, 3,
+                             ifelse(bundesliga$FTHG == bundesliga$FTAG,1,0))
+bundesliga$AwayTeamPoints = ifelse(bundesliga$FTHG > bundesliga$FTAG, 0,
+                             ifelse(bundesliga$FTHG == bundesliga$FTAG,1,3))
+
+#Moving points after full time goals scored
+bundesliga = bundesliga[, c(1:7,25:26,8:24)]
+
+#Now for some Exploratory data
+
+#All-time home team points
+bundesliga %>%
+  group_by(HomeTeam)%>%
+  summarise(Points = sum(HomeTeamPoints))%>%
+  print(n =50)
+
+#All-time home team points sorted by Points
+#creating a variable for it as it will help showcase Home and Away together later
+homepoints = bundesliga %>%
+  group_by(Team = HomeTeam)%>%
+  summarise(HomePoints = sum(HomeTeamPoints), Seasons = n_distinct(season))%>%
+  arrange(desc(HomePoints))%>%
+  print(n =50)
+
+#All-time away team points
+bundesliga %>%
+  group_by(AwayTeam)%>%
+  summarise(Points = sum(AwayTeamPoints))%>%
+  print(n =50)
+
+#All-time away team points sorted by Points
+#creating a variable for it as it will help showcase Home and Away together later
+awaypoints = bundesliga %>%
+  group_by(Team = AwayTeam)%>%
+  summarise(AwayPoints = sum(AwayTeamPoints), Seasons = n_distinct(season))%>%
+  arrange(desc(AwayPoints))%>%
+  print(n =50)
+
+#Summarize Total Points, Home/Away Points, Percentage of Points earned at Home/Away
+#Bayern is the far dominant team as most people are aware
+#But also quite a gap between 2nd to 3rd and 3rd to 4th
+#Crazy enough Schalke is now in the 2nd Bundesliga after being relegated in 20/21
+
+#this one is just total points
+bundesliga %>%
+  select(Team = HomeTeam,Points = HomeTeamPoints) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints))%>%
+  group_by(Team)%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print (n = 50)
+
+#This one is total points, home/away points, percentage of home/away points
+#Couldnt figure out how to accomplish this in one pipe
+#So used some global variables and joins to help achieve it
+bundesligapoints = left_join(homepoints, awaypoints)
+bundesligapoints %>%
+  group_by(Team)%>%
+  summarise(Points = HomePoints + AwayPoints, Seasons, HomePoints, AwayPoints,
+            HomePointsPercent = HomePoints/Points, AwayPointsPercent = 1-HomePointsPercent)%>%
+  arrange(desc(Points))%>%
+  print(n = 50)
+
+#Similar to the prem we see the best teams with an almost 55-45 points achieved at home vs on the road
+#As you scroll down you see RB Leipzig at a very similar points share as Bayern. This is a new team in the bundesliga over the last 5 seasons. I wonder if they will be able to retain that and challenge bayern over the next few years
+#Funny enough Geuther Furth achieved almost 80% of thier points on the road in the their one season in the Bundesliga in the last 10 years
+
+
+#Points per Season
+bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  arrange(desc(PointsPerSeason))%>%
+  print(n = 50)
+#This highlights the point above about Leipzig becoming a top team in the bundlesliga
+#Bayern on average achives 14 more points than the second best team - crazy
+
+#Point per season for each Season
+bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  arrange(desc(PointsPerSeason))%>%
+  print(n = 50)
+
+#Dortmund in 11/12 were the last team to beat bayern to the title
+#But interestly enough besides 19/20 weve seen bayern's season over season points tally grow smaller
+
+#Then this is how you can plot it by building a separate tibble and plot referenceing that tibble
+PointPerSeason = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)
+
+ggplot(data = PointPerSeason, aes(Season,PointsPerSeason, group = Team, color = Team)) + 
+  geom_point()+
+  geom_path()
+#Wow that looks pretty hectic!
+
+#Or you can plot within the tibble
+bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  ggplot(aes(Season,PointsPerSeason, group = Team, color = Team)) + 
+  geom_point()+
+  geom_path()
+
+#So we need to do some filtering
+#I think 1 we want to look at teams who have at least been playing more than 5 seasons our of the last 12 so we can see trends a bit
+#Second we'll have to find a way to split it 
+#Either manually selecting teams like top 6-8, and then the next 6-8 on a separate graph
+#it would be nice if we could plot teams who have achieved one season of at least x points as the top teams
+#and then maybe the group below them
+#So if we go back to points per season per team
+bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  arrange(desc(PointsPerSeason))%>%
+  print(n = 200)
+#We can see that 91 is the top, 30s and below are the bottom, so 55-60 is around an average
+#Find any team who had a season of at least 55 points
+topseasons = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  filter(Points >= 60)%>%
+  arrange(desc(PointsPerSeason))%>%
+  print(n = 200)
+#The only teams to achieve a 60 point season in the last 12 seasons
+unique(topseasons$Team)
+#so maybe we can make a graph on these teams to see how theyve done
+#Then make a separate graph on the others
+#i think we'll still want to see teams who have played more than 5 seasons so we can see some trend
+
+
+bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  filter(n_distinct(Season) >= 5)%>%
+  filter(Team %in% topseasons$Team)%>%
+  ggplot(aes(Season,PointsPerSeason, group = Team, color = Team)) + 
+  geom_point()+
+  geom_path()+
+  scale_color_brewer(palette = "Set3")
+#Summary
+#As mentioned above bayern have slowly slowly been declining in points since 12/13
+#Dortmund are incredibly inconsistent ranging from high 40s in  14/15 to 75-80 in a coupole seasons
+#Leverkusen seems like a fairly consistent 55-65 point team besides 16/17
+#Leipzig has been right around Leverkusen since entering the bundesliga in 16/17
+#Wolfburg have gone through lots of ups and down, currently on an up so hopefully this can continue
+
+#So it looks like bayerns slow decline and some conssitency from Leipzig combined with a good year from Dortmund/Wolfsburg seem like the best bet to dethrone bayern
+
+
+#Now can we look at the other teams who have played more than 5 seasons and see how they trend
+bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  summarise(Points = sum(Points),NumberOfSeasons = n_distinct(Season),PointsPerSeason = Points/NumberOfSeasons)%>%
+  filter(n_distinct(Season) >= 5)%>%
+  filter(!(Team %in% topseasons$Team))%>%
+  ggplot(aes(Season,PointsPerSeason, group = Team, color = Team)) + 
+  geom_point()+
+  geom_path() + 
+  scale_color_brewer(palette = "Set3")
+
+#I dont really see any team that shows any consistency or upwards trends
+#Each team looks very inconsistent, most of which have been relegated in a season
+#I think Freiberg shows the mostly likelihood to move into that group above
+
+
+##Now we get into competiveness season over season
+##Here we are going to choose an arbitrary number: 6
+#And compare how many points the bottom 6 per season get off the top 6
+#Why? 
+#As a soccer fan all you hear from the premier league media is anyone can beat anyone on any given day
+#Of course this is true, but I would like to see how this compares across the different leagues as well
+#To see if one league poses more competition regularily than other leagues for the top teams
+
+#09/10 season
+#We will first have to identidy the standings in each season
+bundesligaseason0910 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "09/10")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+#Identify the top 6 and bottom 6 sides in the season
+top6 = head(bundesligaseason0910$Team,6)
+bottom6 = tail(bundesligaseason0910$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 09/10
+away0910points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "09/10")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 09/10
+home0910points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "09/10")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 09/10 season
+bottom0910points = sum(home0910points$Points) + sum(away0910points$Points)
+bottom0910points
+
+#10/11 season
+bundesligaseason1011 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "10/11")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(bundesligaseason1011$Team,6)
+bottom6 = tail(bundesligaseason1011$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 10/11
+
+away1011points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "10/11")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 10/11
+
+home1011points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "10/11")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 10/11 season
+bottom1011points = sum(home1011points$Points) + sum(away1011points$Points)
+bottom1011points
+
+#11/12 season
+bundesligaseason1112 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "11/12")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(bundesligaseason1112$Team,6)
+bottom6 = tail(bundesligaseason1112$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 11/12
+
+away1112points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "11/12")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 11/12
+
+home1112points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "11/12")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 11/12 season
+bottom1112points = sum(home1112points$Points) + sum(away1112points$Points)
+bottom1112points
+
+#12/13 season
+bundesligaseason1213 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "12/13")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(bundesligaseason1213$Team,6)
+bottom6 = tail(bundesligaseason1213$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 12/13
+
+away1213points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "12/13")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 12/13
+
+home1213points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "12/13")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 12/13 season
+bottom1213points = sum(home1213points$Points) + sum(away1213points$Points)
+bottom1213points
+
+#13/14 season
+bundesligaseason1314 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "13/14")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(bundesligaseason1314$Team,6)
+bottom6 = tail(bundesligaseason1314$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 13/14
+
+away1314points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "13/14")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 13/14
+
+home1314points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "13/14")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 13/14 season
+bottom1314points = sum(home1314points$Points) + sum(away1314points$Points)
+bottom1314points
+
+#14/15 season
+bundesligaseason1415 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "14/15")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(bundesligaseason1415$Team,6)
+bottom6 = tail(bundesligaseason1415$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 14/15
+
+away1415points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "14/15")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 14/15
+
+home1415points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "14/15")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 14/15 season
+bottom1415points = sum(home1415points$Points) + sum(away1415points$Points)
+bottom1415points
+
+#15/16 season
+bundesligaseason1516 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "15/16")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(bundesligaseason1516$Team,6)
+bottom6 = tail(bundesligaseason1516$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 15/16
+
+away1516points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "15/16")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 15/16
+
+home1516points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "15/16")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 15/16 season
+bottom1516points = sum(home1516points$Points) + sum(away1516points$Points)
+bottom1516points
+
+#16/17 season
+bundesligaseason1617 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "16/17")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(bundesligaseason1617$Team,6)
+bottom6 = tail(bundesligaseason1617$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 16/17
+
+away1617points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "16/17")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 16/17
+
+home1617points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "16/17")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 16/17 season
+bottom1617points = sum(home1617points$Points) + sum(away1617points$Points)
+bottom1617points
+
+#17/18 season
+bundesligaseason1718 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "17/18")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(bundesligaseason1718$Team,6)
+bottom6 = tail(bundesligaseason1718$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 17/18
+
+away1718points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "17/18")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 17/18
+
+home1718points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "17/18")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 17/18 season
+bottom1718points = sum(home1718points$Points) + sum(away1718points$Points)
+bottom1718points
+
+#18/19 season
+bundesligaseason1819 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "18/19")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(bundesligaseason1819$Team,6)
+bottom6 = tail(bundesligaseason1819$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 18/19
+
+away1819points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "18/19")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 18/19
+
+home1819points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "18/19")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 18/19 season
+bottom1819points = sum(home1819points$Points) + sum(away1819points$Points)
+bottom1819points
+
+#19/20 season
+bundesligaseason1920 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "19/20")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(bundesligaseason1920$Team,6)
+bottom6 = tail(bundesligaseason1920$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 19/20
+
+away1920points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "19/20")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 19/20
+
+home1920points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "19/20")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 19/20 season
+bottom1920points = sum(home1920points$Points) + sum(away1920points$Points)
+bottom1920points
+
+#20/21 season
+bundesligaseason2021 = bundesliga%>%
+  select(Team = HomeTeam,Points = HomeTeamPoints, Season = season) %>%
+  bind_rows(bundesliga%>%
+              select(Team = AwayTeam,Points = AwayTeamPoints, Season = season))%>%
+  group_by(Team, Season)%>%
+  filter(Season == "20/21")%>%
+  summarise(Points = sum(Points))%>%
+  arrange(desc(Points))%>%
+  print(n = 20)
+
+top6 = head(bundesligaseason2021$Team,6)
+bottom6 = tail(bundesligaseason2021$Team,6)
+
+
+#points by bottom 6 Away to the top 6 in 20/21
+
+away2021points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = AwayTeamPoints, season) %>%
+  filter(HomeTeam %in% top6)%>%
+  filter(AwayTeam %in% bottom6)%>%
+  filter(season == "20/21")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#points by bottom 6 at Home to the top 6 in 20/21
+
+home2021points = bundesliga%>%
+  select(HomeTeam, AwayTeam,Points = HomeTeamPoints, season) %>%
+  filter(HomeTeam %in% bottom6)%>%
+  filter(AwayTeam %in% top6)%>%
+  filter(season == "20/21")%>%
+  group_by(HomeTeam,AwayTeam)%>%
+  summarise(Points = sum(Points))%>%
+  print(n = 50)
+
+#total points bottom 6 earned off the top 6 in 20/21 season
+bottom2021points = sum(home2021points$Points) + sum(away2021points$Points)
+bottom2021points
+
+#Now we can plot a graph showing how many points the bottom sides got season over season
+#This will be more interesting once the other leagues are completed
+#As we can see if there is more distance between the bottom and the top in certain leagues and how that gap is changing 
+
+#Make the dataframe
+#We can probbaly do the same for the other leagues and append as one
+bundesliga_diff = data.frame(Season = c("09/10", "10/11", "11/12", "12/13", 
+                                  "13/14", "14/15", "15/16", "16/17",
+                                  "17/18", "18/19", "19/20", "20/21"),
+                       Points = c(bottom0910points, bottom1011points, bottom1112points, 
+                                  bottom1213points, bottom1314points, bottom1415points, 
+                                  bottom1516points, bottom1617points, bottom1718points, 
+                                  bottom1819points, bottom1920points, bottom2021points), 
+                       League = "bundesliga")
+#Plot the graph 
+ggplot(data = bundesliga_diff, aes(x = Season, y = Points, group = League)) + 
+  geom_point()+
+  geom_line()
+#10/11 was the year Bayern didnt win the league, with the top team only earning 75 points. Therefore it was a very tight season and much more even
+#19/20 seems like a bit of an outlier. The bottom sides must have really struggled that year
+#in general its very up and down, hovering between 35-50, however the last 2 years have been the least competitive
+
+#We can now print side by side boxplots for each season from 09/10 to 20/21 to see how the general points are trending
+
+#We can make a boxplot of the seasons points as well
+bundesligaseasons = rbind.data.frame(bundesligaseason0910, bundesligaseason1011, bundesligaseason1112, bundesligaseason1213, 
+                               bundesligaseason1314, bundesligaseason1415, bundesligaseason1516, bundesligaseason1617, 
+                               bundesligaseason1718, bundesligaseason1819, bundesligaseason1920, bundesligaseason2021)
+#Just the points
+ggplot(data = bundesligaseasons)+
+  geom_boxplot(aes(Points, Season))+
+  coord_flip()+
+  geom_point(aes(Points, Season), size = 1)
+
+#The points showing groups of duplciated points more evidently - i like this one the best
+
+ggplot(data = bundesligaseasons)+
+  geom_boxplot(aes(Points, Season))+
+  coord_flip()+
+  geom_point(aes(Points, Season), size = 0.5)+
+  geom_count(aes(Points, Season, color = ..n..))+
+  scale_color_continuous(breaks = c(1,2,3))+
+  scale_size_continuous(range = c(1,3),  
+                        breaks= c(1,2,3))
+
+#What this clearly shows in comparison to the premier league is much more outliers
+#lets take a second look at the prem one
+
+ggplot(data = premseasons)+
+  geom_boxplot(aes(Points, Season))+
+  coord_flip()+
+  geom_point(aes(Points, Season), size = 0.5)+
+  geom_count(aes(Points, Season, color = ..n..))+
+  scale_color_continuous(breaks = c(1,2,3))+
+  scale_size_continuous(range = c(1,3),  
+                        breaks= c(1,2,3))
+
+#The average points in the prem seems to about 47-48 and growing a bit over the last couple years to above 50
+#this is higher than the bundesliga which is likely in the 43-45 point mark
+#it makes sense that the bundes is a bit lower as they play 4 less games per season, but in general the middle teams of both leagues are very similar
+
+#another thing to note is the bundesliga teams seem to float around the medium much closer than the prem as you less spread in the middle box
+#this could be explianed by the inconsistency we saw in the season over season points of each team - lots of teams go through highs and lows 
+
+#but the most obvious thing to  note is the bundesliga seasons are often ruled by 1 team (mainly bayern) and struggle to have title races. 
+#this indicates strength in almost only 1 team whereas the prem shows more seasons of closer point tallies at the top
+#therefore my final point is its likely that the middle pack of each league is fairly similar in strength but the top teams of the prem are stronger than the top teams of the bundesliga (besides bayern) in comparison to the rest of the league
+
+#The points slightly scattered so you can see where overalapping points would be
+ggplot(data = bundesligaseasons)+
+  geom_boxplot(aes(Points, Season))+
+  coord_flip()+
+  #geom_point(aes(Points, Season), size = 1)+
+  geom_jitter(aes(Points, Season), width = 0.1)
+
+
+#The last thing is now that we have two leagues, can we show the points from the bottom 6 for each league season over season
+
+league_comp = rbind(prem_diff, bundesliga_diff)
+ggplot(data = league_comp, aes(x = Season, y = Points, group = League, color = League)) + 
+  geom_point()+
+  geom_line()
+#this highlights what was mentioned above as we see in general the bundesliga bottom 6 takes more points off the team 6 in a typical season besides the last two years than the prem
+#so theres actually a smaller gap between the top and bottom in the bundesliga than the prem
+#but the problem is the best of the best in the bundesliga is still too strong for the other teams and lower than overall competitveness seen by the world
